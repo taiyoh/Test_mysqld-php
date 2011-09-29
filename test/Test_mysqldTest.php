@@ -25,12 +25,13 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         $base_dir = $mysqld->getBaseDir();
         $dsn = $mysqld->dsn();
 
-        $ref_dsn = "mysql:dbname=test;host=127.0.0.1;mysql_socket={$base_dir}/tmp/mysql.sock;user=root";
+        $ref_dsn = "mysql:dbname=test;mysql_socket={$base_dir}/tmp/mysql.sock;user=root";
 
         $this->assertEquals($ref_dsn, $dsn, "取得したDSNが異なっています");
 
         $db = new PDO($ref_dsn);
-        $this->assertInstanceOf('PDO', $db, '接続に失敗しています');
+        $err = $db->errorInfo();
+        $this->assertNull($err[1], "接続に失敗しています");
 
         $mysqld->stop();
         sleep(1);

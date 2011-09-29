@@ -77,16 +77,17 @@ class Test_mysqld
 
     public function dsn($args = array())
     {
-        $host = (isset($this->my_cnf['bind-address']))
-            ? $this->my_cnf['bind-address']
-            : '127.0.0.1';
         $merged_args = array_merge(array(
-            'host'         => $host,
-            'port'         => @$this->my_cnf['port'],
             'mysql_socket' => @$this->my_cnf['socket'],
             'user'         => 'root',
             'dbname'       => 'test'
         ), $args);
+        if (!$merged_args['mysql_socket']) {
+            $merged_args['host'] = (isset($this->my_cnf['bind-address']))
+                ? $this->my_cnf['bind-address']
+                : '127.0.0.1';
+            $merged_args['port'] = @$this->my_cnf['port'];
+        }
         ksort($merged_args);
         $dbargs = array();
         foreach($merged_args as $key => $val) {
