@@ -82,7 +82,7 @@ class Test_mysqld
             'user'         => 'root',
             'dbname'       => 'test'
         ), $args);
-        if (!$merged_args['mysql_socket']) {
+        if (!isset($merged_args['mysql_socket']) || !$merged_args['mysql_socket']) {
             $merged_args['host'] = (isset($this->my_cnf['bind-address']))
                 ? $this->my_cnf['bind-address']
                 : '127.0.0.1';
