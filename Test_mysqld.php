@@ -12,7 +12,7 @@ class Test_mysqld
 
     public static $SEARCH_PATHS = array('/usr/local/mysql');
     public static $ERR_STR      = array();
-    
+
     public function __construct($my_cnf = array(), $opts = array())
     {
         foreach($opts as $attr => $opt) {
@@ -78,11 +78,12 @@ class Test_mysqld
     public function dsn($args = array())
     {
         $merged_args = array_merge(array(
-            'mysql_socket' => @$this->my_cnf['socket'],
+            'unix_socket' => @$this->my_cnf['socket'],
             'user'         => 'root',
             'dbname'       => 'test'
         ), $args);
-        if (!isset($merged_args['mysql_socket']) || !$merged_args['mysql_socket']) {
+
+        if (!isset($merged_args['unix_socket']) || !$merged_args['unix_socket']) {
             $merged_args['host'] = (isset($this->my_cnf['bind-address']))
                 ? $this->my_cnf['bind-address']
                 : '127.0.0.1';
@@ -100,24 +101,28 @@ class Test_mysqld
 
     public function start()
     {
-        if (is_null($this->pid)) {
+        if (!is_null($this->pid)) {
             return;
         }
+
         $pid = pcntl_fork();
         if ($pid == -1) {
             die('fork failed!');
         }
-        else if ($pid) {
+        if ($pid === 0) {
             $cmds = array(
-                $this->mysqld,
                 '--defaults-file=' . $this->base_dir . '/etc/my.cnf',
                 '--user=root'
             );
-            passthru(implode(' ', $cmds), $ret);
+            pcntl_exec($this->mysqld, $cmds);
             file_put_contents($this->base_dir . '/tmp/mysqld.log', $ret);
+            die("failed to launch mysqld:");
         }
         while (!file_exists($this->my_cnf['pid-file'])) {
-            if (waitpid($pid, WNOHANG) > 0) {
+            // TODO $status = WNOHANG;
+            // pcntl_waitpid($pid, $status);
+            $wait = -1;
+            if ($wait > 0) {
                 $log = file_get_contents($this->base_dir . '/tmp/mysqld.log');
                 die("*** failed to launch mysqld ***\n{$log}");
             }
@@ -133,22 +138,29 @@ class Test_mysqld
         if (is_null($this->pid)) {
             return;
         }
+
+        $status = 0;
         posix_kill($this->pid, $sig);
         while (pcntl_waitpid($this->pid, $status) <= 0) {}
         $this->pid = null;
+
         // might remain for example when sending SIGKILL
-        unlink($this->my_cnf['pid-file']);
+        if ( file_exists($this->my_cnf['pid-file']) ) {
+            unlink($this->my_cnf['pid-file']);
+        }
     }
 
     public function setup()
     {
         // (re)create directory structure
-        if (file_exists($this->base_dir)) {
-            self::rm_rf($this->base_dir);
+        if ( ! file_exists($this->base_dir) ) {
+            mkdir($this->base_dir, 0777, true);
         }
-        mkdir($this->base_dir, 0777, true);
         foreach(array('etc', 'var', 'tmp') as $subdir) {
-            mkdir($this->base_dir . "/$subdir", 0777, true);
+            $d = $this->base_dir . "/$subdir";
+            if ( ! file_exists($d) ) {
+                mkdir($d, 0777, true);
+            }
         }
         // my.cnf
         $fh = fopen($this->base_dir . '/etc/my.cnf', 'w');
@@ -157,7 +169,12 @@ class Test_mysqld
         }
         fwrite($fh, "[mysqld]\n");
         foreach($this->my_cnf as $key => $val) {
-            $line = ((is_null($val))? $key : "{$key}={$val}") . "\n";
+            if ( $val ) {
+                $line = "{$key}={$val}" . "\n";
+            }
+            else {
+                $line = $key . "\n";
+            }
             fwrite($fh, $line);
         }
         fclose($fh);
@@ -220,25 +237,4 @@ class Test_mysqld
         return $path;
     }
 
-    // via http://linuxserver.jp/%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0/PHP/%E3%83%87%E3%82%A3%E3%83%AC%E3%82%AF%E3%83%88%E3%83%AA%E3%81%AE%E5%86%8D%E5%B8%B0%E7%9A%84%E5%89%8A%E9%99%A4.php
-    protected function rm_rf($dir)
-    {
-        if (!is_dir($dir)) {
-            return false;
-        } else {
-            $filelist = scandir($dir);
-            foreach ($filelist as $filename) {
-                if ($filename == '.' || $filename == '..') {
-                    continue;
-                }
-                if (is_dir("{$dir}/{$filename}")) {
-                    self::rm_rf("{$dir}/{$filename}");
-                } else {
-                    unlink("{$dir}/{$filename}");
-                }
-            }
-        }
-        rmdir($dir);
-        return true;
-    }
 }
