@@ -9,6 +9,7 @@ class Test_mysqld
     protected $mysqld     = null;
     protected $pid        = null;
     protected $_owner_pid = null;
+    protected $user = null;
 
     public static $SEARCH_PATHS = array('/usr/local/mysql');
     public static $ERR_STR      = array();
@@ -19,6 +20,8 @@ class Test_mysqld
             $this->$attr = $opt;
         }
 
+        if ( ! $this->user ) { $this->user = 'root'; }
+
         $this->_owner_pid = getmypid();
         if (isset($opts['base_dir'])) {
             $this->base_dir = (strpos($opts['base_dir'], '/') !== 0)
@@ -26,7 +29,7 @@ class Test_mysqld
                 : $opts['base_dir'];
         }
         else {
-            $this->base_dir = sys_get_temp_dir();
+            $this->base_dir = sys_get_temp_dir() . '/' . sha1(time());
         }
 
         $this->my_cnf = array_merge(array(
@@ -79,7 +82,6 @@ class Test_mysqld
     {
         $merged_args = array_merge(array(
             'unix_socket' => @$this->my_cnf['socket'],
-            'user'         => 'root',
             'dbname'       => 'test'
         ), $args);
 
@@ -129,7 +131,7 @@ class Test_mysqld
             usleep(100000);
         }
         $this->pid = $pid;
-        $db = new PDO($this->dsn(array('dbname' => 'mysql')));
+        $db = new PDO($this->dsn(array('dbname' => 'mysql')),$this->user);
         $db->exec('CREATE DATABASE IF NOT EXISTS test');
     }
 
@@ -148,6 +150,7 @@ class Test_mysqld
         if ( file_exists($this->my_cnf['pid-file']) ) {
             unlink($this->my_cnf['pid-file']);
         }
+        self::rm_rf($this->base_dir);
     }
 
     public function setup()
@@ -237,4 +240,24 @@ class Test_mysqld
         return $path;
     }
 
+    protected function rm_rf($dir)
+    {
+        if (!is_dir($dir)) {
+            return false;
+        } else {
+            $filelist = scandir($dir);
+            foreach ($filelist as $filename) {
+                if ($filename == '.' || $filename == '..') {
+                    continue;
+                }
+                if (is_dir("{$dir}/{$filename}")) {
+                    self::rm_rf("{$dir}/{$filename}");
+                } else {
+                    unlink("{$dir}/{$filename}");
+                }
+            }
+        }
+        rmdir($dir);
+        return true;
+    }
 }
