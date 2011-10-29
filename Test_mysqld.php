@@ -9,7 +9,7 @@ class Test_mysqld
     protected $mysqld     = null;
     protected $pid        = null;
     protected $_owner_pid = null;
-    protected $user = null;
+    public $user = null;
 
     public static $SEARCH_PATHS = array('/usr/local/mysql');
     public static $ERR_STR      = array();

@@ -99,7 +99,7 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         putenv("PATH={$ref_paths}");
         Test_mysqld::$SEARCH_PATHS = array('/usr/local/mysql');
     }
-    /*
+
     public function testMultiProcess()
     {
         $my_cnf = array('skip-networking' => '');
@@ -118,12 +118,11 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         }
 
         $mysqld = new Test_mysqld($my_cnf, $opts);
-        $db = new PDO($mysqld->dsn());
+        $db = new PDO($mysqld->dsn(), $mysqld->user);
 
         $err = $db->errorInfo();
         $this->assertNull($err[1], "DB接続周りでエラーが発生しています");
     }
-    */
 }
 
 /*
