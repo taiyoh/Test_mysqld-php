@@ -20,8 +20,6 @@ class Test_mysqld
             $this->$attr = $opt;
         }
 
-        if ( ! $this->user ) { $this->user = 'root'; }
-
         $this->_owner_pid = getmypid();
         if (isset($opts['base_dir'])) {
             $this->base_dir = (strpos($opts['base_dir'], '/') !== 0)
@@ -29,7 +27,7 @@ class Test_mysqld
                 : $opts['base_dir'];
         }
         else {
-            $this->base_dir = sys_get_temp_dir() . '/' . sha1(time());
+            $this->base_dir = sys_get_temp_dir() . '/' . sha1(microtime());
         }
 
         $this->my_cnf = array_merge(array(
@@ -121,17 +119,14 @@ class Test_mysqld
             die("failed to launch mysqld:");
         }
         while (!file_exists($this->my_cnf['pid-file'])) {
-            // TODO $status = WNOHANG;
-            // pcntl_waitpid($pid, $status);
-            $wait = -1;
-            if ($wait > 0) {
+            if ( pcntl_waitpid($pid, $status, WNOHANG) > 0) {
                 $log = file_get_contents($this->base_dir . '/tmp/mysqld.log');
                 die("*** failed to launch mysqld ***\n{$log}");
             }
             usleep(100000);
         }
         $this->pid = $pid;
-        $db = new PDO($this->dsn(array('dbname' => 'mysql')),$this->user);
+        $db = new PDO($this->dsn(array('dbname' => 'mysql')), 'root');
         $db->exec('CREATE DATABASE IF NOT EXISTS test');
     }
 
@@ -240,6 +235,7 @@ class Test_mysqld
         return $path;
     }
 
+    // via http://linuxserver.jp/%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0/PHP/%E3%83%87%E3%82%A3%E3%83%AC%E3%82%AF%E3%83%88%E3%83%AA%E3%81%AE%E5%86%8D%E5%B8%B0%E7%9A%84%E5%89%8A%E9%99%A4.php
     protected function rm_rf($dir)
     {
         if (!is_dir($dir)) {
