@@ -12,7 +12,7 @@ class Test_mysqld
 
     public static $SEARCH_PATHS = array('/usr/local/mysql');
     public static $ERR_STR      = array();
-    
+
     public function __construct($my_cnf = array(), $opts = array())
     {
         foreach($opts as $attr => $opt) {
@@ -26,7 +26,7 @@ class Test_mysqld
                 : $opts['base_dir'];
         }
         else {
-            $this->base_dir = sys_get_temp_dir();
+            $this->base_dir = sys_get_temp_dir() . '/' . sha1(microtime());
         }
 
         $this->my_cnf = array_merge(array(
@@ -78,11 +78,11 @@ class Test_mysqld
     public function dsn($args = array())
     {
         $merged_args = array_merge(array(
-            'mysql_socket' => @$this->my_cnf['socket'],
-            'user'         => 'root',
+            'unix_socket' => @$this->my_cnf['socket'],
             'dbname'       => 'test'
         ), $args);
-        if (!isset($merged_args['mysql_socket']) || !$merged_args['mysql_socket']) {
+
+        if (!isset($merged_args['unix_socket']) || !$merged_args['unix_socket']) {
             $merged_args['host'] = (isset($this->my_cnf['bind-address']))
                 ? $this->my_cnf['bind-address']
                 : '127.0.0.1';
@@ -100,31 +100,32 @@ class Test_mysqld
 
     public function start()
     {
-        if (is_null($this->pid)) {
+        if (!is_null($this->pid)) {
             return;
         }
+
         $pid = pcntl_fork();
         if ($pid == -1) {
             die('fork failed!');
         }
-        else if ($pid) {
+        if ($pid === 0) {
             $cmds = array(
-                $this->mysqld,
                 '--defaults-file=' . $this->base_dir . '/etc/my.cnf',
                 '--user=root'
             );
-            passthru(implode(' ', $cmds), $ret);
+            pcntl_exec($this->mysqld, $cmds);
             file_put_contents($this->base_dir . '/tmp/mysqld.log', $ret);
+            die("failed to launch mysqld:");
         }
         while (!file_exists($this->my_cnf['pid-file'])) {
-            if (waitpid($pid, WNOHANG) > 0) {
+            if ( pcntl_waitpid($pid, $status, WNOHANG) > 0) {
                 $log = file_get_contents($this->base_dir . '/tmp/mysqld.log');
                 die("*** failed to launch mysqld ***\n{$log}");
             }
             usleep(100000);
         }
         $this->pid = $pid;
-        $db = new PDO($this->dsn(array('dbname' => 'mysql')));
+        $db = new PDO($this->dsn(array('dbname' => 'mysql')), 'root');
         $db->exec('CREATE DATABASE IF NOT EXISTS test');
     }
 
@@ -133,22 +134,30 @@ class Test_mysqld
         if (is_null($this->pid)) {
             return;
         }
+
+        $status = 0;
         posix_kill($this->pid, $sig);
         while (pcntl_waitpid($this->pid, $status) <= 0) {}
         $this->pid = null;
+
         // might remain for example when sending SIGKILL
-        unlink($this->my_cnf['pid-file']);
+        if ( file_exists($this->my_cnf['pid-file']) ) {
+            unlink($this->my_cnf['pid-file']);
+        }
+        self::rm_rf($this->base_dir);
     }
 
     public function setup()
     {
         // (re)create directory structure
-        if (file_exists($this->base_dir)) {
-            self::rm_rf($this->base_dir);
+        if ( ! file_exists($this->base_dir) ) {
+            mkdir($this->base_dir, 0777, true);
         }
-        mkdir($this->base_dir, 0777, true);
         foreach(array('etc', 'var', 'tmp') as $subdir) {
-            mkdir($this->base_dir . "/$subdir", 0777, true);
+            $d = $this->base_dir . "/$subdir";
+            if ( ! file_exists($d) ) {
+                mkdir($d, 0777, true);
+            }
         }
         // my.cnf
         $fh = fopen($this->base_dir . '/etc/my.cnf', 'w');
@@ -157,7 +166,12 @@ class Test_mysqld
         }
         fwrite($fh, "[mysqld]\n");
         foreach($this->my_cnf as $key => $val) {
-            $line = ((is_null($val))? $key : "{$key}={$val}") . "\n";
+            if ( $val ) {
+                $line = "{$key}={$val}" . "\n";
+            }
+            else {
+                $line = $key . "\n";
+            }
             fwrite($fh, $line);
         }
         fclose($fh);

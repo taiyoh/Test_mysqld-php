@@ -25,7 +25,7 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         $base_dir = $mysqld->getBaseDir();
         $dsn = $mysqld->dsn();
 
-        $ref_dsn = "mysql:dbname=test;mysql_socket={$base_dir}/tmp/mysql.sock;user=root";
+        $ref_dsn = "mysql:dbname=test;unix_socket={$base_dir}/tmp/mysql.sock";
 
         $this->assertEquals($ref_dsn, $dsn, "取得したDSNが異なっています");
 
@@ -57,14 +57,14 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         }
 
         $instances = array();
-        foreach(range(1, 3) as $i) {
+        foreach(range(1, 2) as $i) {
             $mysqld = new Test_mysqld($my_cnf, $opts);
             $this->assertInstanceOf('Test_mysqld', $mysqld, 'Test_mysqldインスタンスではありません');
             if ($mysqld instanceof Test_mysqld) {
                 $instances[] = $mysqld;
             }
         }
-        $this->assertEquals(3, count($instances), "生成されたインスタンスが３つありません");
+        $this->assertEquals(2, count($instances), "生成されたインスタンスが３つありません");
 
         foreach($instances as $mysqld) {
             $mysqld->stop();
@@ -85,7 +85,7 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         while(count(Test_mysqld::$SEARCH_PATHS) > 0) {
             array_shift(Test_mysqld::$SEARCH_PATHS);
         }
-        
+
         $this->assertFalse(isset(Test_mysqld::$ERR_STR[0]), "エラー文言が存在してます");
 
         try {
@@ -99,7 +99,7 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         putenv("PATH={$ref_paths}");
         Test_mysqld::$SEARCH_PATHS = array('/usr/local/mysql');
     }
-    /*
+
     public function testMultiProcess()
     {
         $my_cnf = array('skip-networking' => '');
@@ -118,12 +118,11 @@ class Test_mysqldTest extends PHPUnit_Framework_TestCase
         }
 
         $mysqld = new Test_mysqld($my_cnf, $opts);
-        $db = new PDO($mysqld->dsn());
+        $db = new PDO($mysqld->dsn(), $mysqld->user);
 
         $err = $db->errorInfo();
         $this->assertNull($err[1], "DB接続周りでエラーが発生しています");
     }
-    */
 }
 
 /*
