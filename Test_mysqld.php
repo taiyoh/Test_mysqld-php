@@ -261,9 +261,9 @@ class Test_mysqld
     {
         if (defined("TEST_MYSQLD_CHILD_PID")) {
             $pid = constant("TEST_MYSQLD_CHILD_PID");
-            $status = 0;
-            posix_kill($pid, SIGTERM);
-            while (pcntl_waitpid($pid, $status) <= 0) {}
+            if (posix_getsid($pid) !== false) {
+                posix_kill($pid, SIGTERM);
+            }
         }
     }
 }
