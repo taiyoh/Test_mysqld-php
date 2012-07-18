@@ -26,7 +26,7 @@ class Test_mysqld
                 : $opts['base_dir'];
         }
         else {
-            $this->base_dir = sys_get_temp_dir() . '/' . sha1(microtime());
+            $this->base_dir = sys_get_temp_dir() . '/' . $this->_owner_pid;
         }
 
         $this->my_cnf = array_merge(array(
@@ -125,6 +125,7 @@ class Test_mysqld
             usleep(100000);
         }
         $this->pid = $pid;
+        define("TEST_MYSQLD_CHILD_PID", $pid);
         $db = new PDO($this->dsn(array('dbname' => 'mysql')), 'root');
         $db->exec('CREATE DATABASE IF NOT EXISTS test');
     }
@@ -255,4 +256,16 @@ class Test_mysqld
         rmdir($dir);
         return true;
     }
+
+    public static function __shutdown()
+    {
+        if (defined("TEST_MYSQLD_CHILD_PID")) {
+            $pid = constant("TEST_MYSQLD_CHILD_PID");
+            $status = 0;
+            posix_kill($pid, SIGTERM);
+            while (pcntl_waitpid($pid, $status) <= 0) {}
+        }
+    }
 }
+
+register_shutdown_function('Test_mysqld::__shutdown');
