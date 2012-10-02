@@ -125,7 +125,6 @@ class Test_mysqld
             usleep(100000);
         }
         $this->pid = $pid;
-        define("TEST_MYSQLD_CHILD_PID", $pid);
         $db = new PDO($this->dsn(array('dbname' => 'mysql')), 'root');
         $db->exec('CREATE DATABASE IF NOT EXISTS test');
     }
@@ -267,5 +266,3 @@ class Test_mysqld
         }
     }
 }
-
-register_shutdown_function('Test_mysqld::__shutdown');
